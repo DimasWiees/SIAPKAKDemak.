@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="id" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SIAP-KAK - Dashboard OPD & Pengumpulan Data Kabupaten Demak</title>
+    
+    <!-- Tailwind CSS Play CDN (Production Configured) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+
+    <!-- FontAwesome CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Chart.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <!-- SheetJS (XLSX) CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Google Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-full flex flex-col">
+
+    <!-- LOGIN SECTION -->
+    <div id="login-section" class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-50 flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl border border-slate-100 my-8">
+            <div class="text-center mb-6">
+                <div class="w-14 h-14 bg-indigo-600 text-white rounded-2xl flex items-center justify-center mx-auto mb-3 shadow-lg shadow-indigo-200 text-2xl">
+                    <i class="fa-solid fa-building-columns"></i>
+                </div>
+                <h2 class="text-2xl font-bold text-slate-800">SIAP-KAK Login</h2>
+                <p class="text-xs text-slate-500 mt-1">Kabupaten Demak - Pelaporan Fisik & Keuangan</p>
+            </div>
+
+            <form onsubmit="handleLogin(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-700 mb-1.5">Masuk Sebagai</label>
+                    <select id="loginRole" onchange="toggleLoginOpdSelect()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <option value="admin">Administrator (Kabupaten / Setda)</option>
+                        <option value="opd">Operator OPD / Instansi / Puskesmas</option>
+                    </select>
+                </div>
+
+                <div id="opdSelectContainer" class="hidden">
+                    <label class="block text-xs font-medium text-slate-700 mb-1.5">Pilih Instansi / OPD / Puskesmas</label>
+                    <select id="loginOpdName" onchange="updateHintPassword()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        <!-- Dynamic list -->
+                    </select>
+                </div>
+
+                <div>
+                    <div class="flex justify-between items-center mb-1.5">
+                        <label class="block text-xs font-medium text-slate-700">Kata Sandi / Password</label>
+                        <span id="passwordHint" class="text-[10px] text-indigo-600 font-medium hidden">Sandi default: demak2026</span>
+                    </div>
+                    <input type="password" id="loginPassword" required placeholder="Masukkan kata sandi..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                </div>
+
+                <button type="submit" class="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl shadow-md shadow-indigo-200 transition">
+                    Masuk ke Sistem
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP CONTAINER -->
+    <div id="app-container" class="hidden flex flex-col h-full flex-grow">
+        <!-- Header -->
+        <header class="bg-indigo-700 text-white shadow-md sticky top-0 z-40">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div class="flex items-center space-x-3">
+                    <div class="bg-indigo-600 p-2.5 rounded-xl border border-indigo-500 shadow-inner">
+                        <i class="fa-solid fa-chart-pie text-xl text-indigo-100"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-xl font-bold tracking-tight">SIAP-KAK Dashboard</h1>
+                        <p id="userRoleBadge" class="text-xs text-indigo-200">Panel Administrator</p>
+                    </div>
+                </div>
+                <!-- Navigation Tabs -->
+                <div class="flex items-center gap-3">
+                    <nav class="flex flex-wrap bg-indigo-800/60 p-1.5 rounded-xl backdrop-blur-sm border border-indigo-600/50 gap-1">
+                        <button onclick="switchTab('dashboard')" id="nav-dashboard" class="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200 bg-white text-indigo-700 shadow-sm flex items-center gap-2">
+                            <i class="fa-solid fa-chart-line"></i> Dashboard
+                        </button>
+                        <button onclick="switchTab('input')" id="nav-input" class="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200 text-indigo-200 hover:text-white flex items-center gap-2">
+                            <i class="fa-solid fa-file-pen"></i> Input Data
+                        </button>
+                        <button onclick="switchTab('opd')" id="nav-opd" class="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200 text-indigo-200 hover:text-white flex items-center gap-2">
+                            <i class="fa-solid fa-building-user"></i> Manajemen OPD
+                        </button>
+                        <button onclick="switchTab('admin')" id="nav-admin" class="px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200 text-indigo-200 hover:text-white flex items-center gap-2">
+                            <i class="fa-solid fa-table-list"></i> Admin & Tabel
+                        </button>
+                    </nav>
+                    <button onclick="handleLogout()" class="px-3 py-2.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold rounded-xl transition shadow-sm flex items-center gap-2" title="Keluar Akun">
+                        <i class="fa-solid fa-right-from-bracket"></i> Keluar
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+
+            <!-- SECTION: DASHBOARD -->
+            <section id="section-dashboard" class="space-y-6">
+                <div class="bg-gradient-to-r from-indigo-600 to-violet-600 rounded-2xl p-6 sm:p-8 text-white shadow-xl relative overflow-hidden flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div class="absolute right-0 top-0 transform translate-x-8 -translate-y-8 opacity-10 pointer-events-none">
+                        <i class="fa-solid fa-building-columns text-9xl"></i>
+                    </div>
+                    <div class="relative z-10 max-w-xl">
+                        <span id="dashboardSubtitleBadge" class="bg-indigo-500/40 text-indigo-100 text-xs font-semibold px-3 py-1 rounded-full uppercase tracking-wider border border-indigo-400/30">Portal Resmi</span>
+                        <h2 class="text-2xl sm:text-3xl font-bold mt-2">Monitoring Kinerja & Kumpul Data OPD</h2>
+                        <p class="text-indigo-100 mt-2 text-sm sm:text-base leading-relaxed">
+                            Pantau rekapitulasi data dari berbagai Bagian, Dinas, Badan, Kecamatan, RSUD, hingga Puskesmas Kabupaten Demak secara real-time.
+                        </p>
+                    </div>
+                    <div id="filterDashboardWrapper" class="relative z-10 bg-white/10 backdrop-blur-md p-4 rounded-xl border border-white/20 w-full md:w-80">
+                        <label class="block text-xs font-medium text-indigo-100 uppercase tracking-wider mb-1.5"><i class="fa-solid fa-filter"></i> Filter Laporan Instansi</label>
+                        <select id="filterDashboardOpd" onchange="onDashboardFilterChange()" class="w-full bg-white text-slate-800 border border-indigo-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                            <option value="ALL">Semua Instansi (Keseluruhan)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Statistik Ringkas Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between transition hover:shadow-md">
+                        <div>
+                            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Anggaran (Pagu)</p>
+                            <h3 id="stat-total-pagu" class="text-2xl font-bold text-slate-800 mt-1">Rp 0</h3>
+                            <span class="text-xs text-indigo-600 font-medium flex items-center gap-1 mt-1"><i class="fa-solid fa-wallet"></i> Akumulasi pagu</span>
+                        </div>
+                        <div class="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center text-xl shadow-inner">
+                            <i class="fa-solid fa-coins"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between transition hover:shadow-md">
+                        <div>
+                            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Realisasi Keuangan</p>
+                            <h3 id="stat-total-realisasi" class="text-2xl font-bold text-slate-800 mt-1">Rp 0</h3>
+                            <span class="text-xs text-emerald-600 font-medium flex items-center gap-1 mt-1"><i class="fa-solid fa-circle-check"></i> Penyerapan dana</span>
+                        </div>
+                        <div class="w-12 h-12 bg-emerald-50 text-emerald-600 rounded-xl flex items-center justify-center text-xl shadow-inner">
+                            <i class="fa-solid fa-chart-line"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between transition hover:shadow-md">
+                        <div>
+                            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Rata-Rata Target Fisik</p>
+                            <h3 id="stat-avg-target" class="text-2xl font-bold text-slate-800 mt-1">0%</h3>
+                            <span class="text-xs text-blue-600 font-medium flex items-center gap-1 mt-1"><i class="fa-solid fa-bullseye"></i> Target program</span>
+                        </div>
+                        <div class="w-12 h-12 bg-blue-50 text-blue-600 rounded-xl flex items-center justify-center text-xl shadow-inner">
+                            <i class="fa-solid fa-crosshairs"></i>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex items-center justify-between transition hover:shadow-md">
+                        <div>
+                            <p class="text-xs font-medium text-slate-400 uppercase tracking-wider">Rata-Rata Realisasi Fisik</p>
+                            <h3 id="stat-avg-realisasi-target" class="text-2xl font-bold text-slate-800 mt-1">0%</h3>
+                            <span class="text-xs text-violet-600 font-medium flex items-center gap-1 mt-1"><i class="fa-solid fa-award"></i> Capaian fisik</span>
+                        </div>
+                        <div class="w-12 h-12 bg-violet-50 text-violet-600 rounded-xl flex items-center justify-center text-xl shadow-inner">
+                            <i class="fa-solid fa-star"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Section -->
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                                <i class="fa-solid fa-chart-column text-indigo-600"></i> Grafik Batang: Pagu vs Realisasi Keuangan
+                            </h3>
+                            <span class="text-xs bg-slate-100 text-slate-500 px-2.5 py-1 rounded-md font-medium">Dalam Juta Rp</span>
+                        </div>
+                        <div class="relative h-72 w-full">
+                            <canvas id="barChart"></canvas>
+                        </div>
+                    </div>
+                    <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="font-bold text-slate-800 flex items-center gap-2">
+                                <i class="fa-solid fa-chart-pie text-violet-600"></i> Grafik Pie: Proporsi Anggaran Instansi
+                            </h3>
+                            <span class="text-xs bg-slate-100 text-slate-500 px-2.5 py-1 rounded-md font-medium">Persentase</span>
+                        </div>
+                        <div class="relative h-72 w-full flex justify-center">
+                            <canvas id="pieChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: INPUT DATA -->
+            <section id="section-input" class="hidden space-y-6 max-w-3xl mx-auto">
+                <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-100">
+                    <div class="border-b border-slate-100 pb-4 mb-6">
+                        <h2 id="form-title" class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-pen-to-square text-indigo-600"></i> Form Pengumpulan Data Kinerja Instansi
+                        </h2>
+                        <p class="text-sm text-slate-500 mt-1">Masukkan informasi anggaran, realisasi keuangan, target fisik, serta bulanan laporan kinerja.</p>
+                    </div>
+
+                    <form id="opdForm" onsubmit="handleFormSubmit(event)" class="space-y-5">
+                        <input type="hidden" id="editIndex" value="">
+                        
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1.5">Nama Instansi / OPD <span class="text-rose-500">*</span></label>
+                                <select id="namaOpd" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition">
+                                    <option value="" disabled selected>Pilih Instansi...</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1.5">Periode Bulan & Tahun Laporan <span class="text-rose-500">*</span></label>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <select id="bulanLaporan" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition">
+                                        <option value="Januari">Januari</option>
+                                        <option value="Februari">Februari</option>
+                                        <option value="Maret">Maret</option>
+                                        <option value="April">April</option>
+                                        <option value="Mei">Mei</option>
+                                        <option value="Juni">Juni</option>
+                                        <option value="Juli">Juli</option>
+                                        <option value="Agustus">Agustus</option>
+                                        <option value="September" selected>September</option>
+                                        <option value="Oktober">Oktober</option>
+                                        <option value="November">November</option>
+                                        <option value="Desember">Desember</option>
+                                    </select>
+                                    <select id="tahunLaporan" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition">
+                                        <option value="2025">2025</option>
+                                        <option value="2026" selected>2026</option>
+                                        <option value="2027">2027</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1.5">Anggaran Pagu (Juta Rp) <span class="text-rose-500">*</span></label>
+                                <input type="number" id="paguAnggaran" required min="0" step="any" placeholder="Contoh: 50000" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1.5">Realisasi Keuangan (Juta Rp) <span class="text-rose-500">*</span></label>
+                                <input type="number" id="realisasiKeuangan" required min="0" step="any" placeholder="Contoh: 42000" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1.5">Target Fisik (%) <span class="text-rose-500">*</span></label>
+                                <input type="number" id="targetFisik" required min="0" max="100" step="any" placeholder="Contoh: 85" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-slate-700 mb-1.5">Realisasi Target Fisik (%) <span class="text-rose-500">*</span></label>
+                                <input type="number" id="realisasiFisik" required min="0" max="100" step="any" placeholder="Contoh: 82" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-slate-700 mb-1.5">Catatan / Keterangan Program</label>
+                            <textarea id="keteranganData" rows="3" placeholder="Tuliskan kendala atau progres kegiatan di sini..." class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white transition"></textarea>
+                        </div>
+
+                        <div class="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
+                            <button type="button" onclick="resetForm()" class="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium text-sm hover:bg-slate-50 transition">
+                                Reset / Batal
+                            </button>
+                            <button type="submit" id="submitBtn" class="px-6 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl shadow-md shadow-indigo-200 transition flex items-center gap-2">
+                                <i class="fa-solid fa-floppy-disk"></i> Simpan Data
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <!-- SECTION: MANAJEMEN OPD -->
+            <section id="section-opd" class="hidden space-y-6 max-w-4xl mx-auto">
+                <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-100">
+                    <div class="border-b border-slate-100 pb-4 mb-6">
+                        <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                            <i class="fa-solid fa-building-user text-indigo-600"></i> Manajemen Daftar Instansi / OPD
+                        </h2>
+                        <p class="text-sm text-slate-500 mt-1">Tambah instansi manual atau impor menggunakan file Excel (.xlsx / .csv).</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-slate-100">
+                        <div class="bg-slate-50 p-5 rounded-2xl border border-slate-200/80">
+                            <h3 class="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2">
+                                <i class="fa-solid fa-plus text-indigo-600"></i> Tambah Instansi Manual
+                            </h3>
+                            <form onsubmit="handleOpdManualSubmit(event)" class="space-y-4">
+                                <div>
+                                    <label class="block text-xs font-medium text-slate-700 mb-1">Nama Instansi / OPD</label>
+                                    <input type="text" id="newOpdName" required placeholder="Contoh: Bagian Baru" class="w-full bg-white border border-slate-200 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                </div>
+                                <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium rounded-xl transition shadow-sm">
+                                    Tambahkan Instansi
+                                </button>
+                            </form>
+                        </div>
+
+                        <div class="bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100">
+                            <h3 class="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2">
+                                <i class="fa-solid fa-file-excel text-emerald-600"></i> Impor Instansi dari Excel
+                            </h3>
+                            <div class="space-y-3">
+                                <label class="block text-xs font-medium text-slate-700">Pilih File (.xlsx / .xls / .csv)</label>
+                                <input type="file" id="excelOpdFile" accept=".xlsx, .xls, .csv" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700 cursor-pointer">
+                                <button type="button" onclick="handleExcelUpload()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-xl transition shadow-sm flex items-center justify-center gap-2">
+                                    <i class="fa-solid fa-upload"></i> Proses & Impor Excel
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="pt-6">
+                        <h3 class="font-bold text-slate-800 text-sm mb-4">
+                            <span>Daftar Instansi Terdaftar (<span id="opdCount">0</span>)</span>
+                        </h3>
+                        <div class="overflow-x-auto rounded-xl border border-slate-200 max-h-80 overflow-y-auto">
+                            <table class="w-full text-left border-collapse">
+                                <thead>
+                                    <tr class="bg-slate-100 text-slate-700 text-xs uppercase tracking-wider font-semibold border-b border-slate-200 sticky top-0">
+                                        <th class="py-3 px-4 w-16">No</th>
+                                        <th class="py-3 px-4">Nama Instansi / OPD</th>
+                                        <th class="py-3 px-4 text-center w-24">Aksi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="opdTableBody" class="divide-y divide-slate-100 text-sm text-slate-700"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: ADMIN & TABEL -->
+            <section id="section-admin" class="hidden space-y-6">
+                <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-sm border border-slate-100">
+                    <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-slate-100 pb-5 mb-6">
+                        <div>
+                            <h2 class="text-xl font-bold text-slate-800 flex items-center gap-2">
+                                <i class="fa-solid fa-table text-indigo-600"></i> Tabel Pengelolaan Data Laporan
+                            </h2>
+                            <p class="text-sm text-slate-500 mt-1">Daftar seluruh laporan kinerja instansi Kabupaten Demak.</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-3 w-full md:w-auto">
+                            <select id="filterAdminBulan" onchange="renderTable()" class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <option value="ALL">Semua Bulan</option>
+                                <option value="Januari">Januari</option>
+                                <option value="Februari">Februari</option>
+                                <option value="Maret">Maret</option>
+                                <option value="April">April</option>
+                                <option value="Mei">Mei</option>
+                                <option value="Juni">Juni</option>
+                                <option value="Juli">Juli</option>
+                                <option value="Agustus">Agustus</option>
+                                <option value="September">September</option>
+                                <option value="Oktober">Oktober</option>
+                                <option value="November">November</option>
+                                <option value="Desember">Desember</option>
+                            </select>
+                            <select id="filterAdminTahun" onchange="renderTable()" class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                <option value="ALL">Semua Tahun</option>
+                                <option value="2025">2025</option>
+                                <option value="2026" selected>2026</option>
+                                <option value="2027">2027</option>
+                            </select>
+                            <div class="relative w-full md:w-48">
+                                <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
+                                    <i class="fa-solid fa-magnifying-glass text-xs"></i>
+                                </span>
+                                <input type="text" id="searchInput" oninput="renderTable()" placeholder="Cari instansi..." class="w-full bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-4 py-2 text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white">
+                            </div>
+                            <button onclick="exportData()" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium rounded-xl shadow-sm transition flex items-center gap-2 whitespace-nowrap">
+                                <i class="fa-solid fa-file-excel"></i> Ekspor
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="overflow-x-auto rounded-xl border border-slate-200">
+                        <table class="w-full text-left border-collapse">
+                            <thead>
+                                <tr class="bg-slate-100/70 text-slate-700 text-xs uppercase tracking-wider font-semibold border-b border-slate-200">
+                                    <th class="py-3 px-4">No</th>
+                                    <th class="py-3 px-4">Nama Instansi / OPD</th>
+                                    <th class="py-3 px-4">Periode</th>
+                                    <th class="py-3 px-4">Pagu Anggaran</th>
+                                    <th class="py-3 px-4">Realisasi Keu.</th>
+                                    <th class="py-3 px-4">Target Fisik</th>
+                                    <th class="py-3 px-4">Realisasi Fisik</th>
+                                    <th class="py-3 px-4">Catatan</th>
+                                    <th class="py-3 px-4 text-center">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dataTableBody" class="divide-y divide-slate-100 text-sm text-slate-700"></tbody>
+                        </table>
+                    </div>
+
+                    <div id="emptyTableState" class="hidden text-center py-12">
+                        <div class="w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mx-auto mb-3 text-2xl">
+                            <i class="fa-solid fa-folder-open"></i>
+                        </div>
+                        <p class="text-slate-600 font-medium">Belum ada data laporan yang tersimpan.</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Modal Notifikasi -->
+    <div id="notificationModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-2xl p-6 max-w-sm w-full shadow-2xl border border-slate-100 text-center space-y-4">
+            <div id="modalIconContainer" class="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mx-auto text-2xl shadow-inner">
+                <i id="modalIcon" class="fa-solid fa-circle-info"></i>
+            </div>
+            <div>
+                <h3 id="modalTitle" class="font-bold text-slate-800 text-lg">Informasi Sistem</h3>
+                <p id="modalMessage" class="text-sm text-slate-500 mt-1">Pesan notifikasi sistem...</p>
+            </div>
+            <button onclick="closeNotification()" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-sm rounded-xl transition shadow-sm">
+                Mengerti
+            </button>
+        </div>
+    </div>
+
+    <!-- JavaScript Aplikasi -->
+    <script>
+        let opdList = JSON.parse(localStorage.getItem('siap_kak_opd')) || [
+            "Bagian Administrasi Pembangunan Setda",
+            "Bagian Pemerintahan Setda",
+            "Dinas Pekerjaan Umum dan Penataan Ruang (PUPR)",
+            "Dinas Kesehatan (DKD)",
+            "RSUD Sunan Kalijaga",
+            "Puskesmas Demak I"
+        ];
+
+        let reportsData = JSON.parse(localStorage.getItem('siap_kak_reports')) || [
+            { namaOpd: "Bagian Administrasi Pembangunan Setda", bulanLaporan: "September", tahunLaporan: "2026", paguAnggaran: 1200, realisasiKeuangan: 950, targetFisik: 85, realisasiFisik: 80, keteranganData: "Progres berjalan lancar sesuai jadwal triwulan." },
+            { namaOpd: "Dinas Pekerjaan Umum dan Penataan Ruang (PUPR)", bulanLaporan: "September", tahunLaporan: "2026", paguAnggaran: 15000, realisasiKeuangan: 11200, targetFisik: 78, realisasiFisik: 75, keteranganData: "Pekerjaan jalan produksi tahap 1 hampir selesai." }
+        ];
+
+        let currentUser = JSON.parse(sessionStorage.getItem('siap_kak_user')) || null;
+        let barChartInstance = null;
+        let pieChartInstance = null;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            if (currentUser) {
+                initApp();
+            } else {
+                populateLoginOpdDropdown();
+                toggleLoginOpdSelect();
+            }
+        });
+
+        function toggleLoginOpdSelect() {
+            const role = document.getElementById('loginRole').value;
+            const container = document.getElementById('opdSelectContainer');
+            const hint = document.getElementById('passwordHint');
+            
+            if (role === 'opd') {
+                container.classList.remove('hidden');
+                hint.classList.remove('hidden');
+                document.getElementById('loginPassword').value = 'demak2026';
+            } else {
+                container.classList.add('hidden');
+                hint.classList.add('hidden');
+                document.getElementById('loginPassword').value = '';
+            }
+        }
+
+        function populateLoginOpdDropdown() {
+            const select = document.getElementById('loginOpdName');
+            select.innerHTML = '';
+            opdList.forEach(opd => {
+                const opt = document.createElement('option');
+                opt.value = opd;
+                opt.textContent = opd;
+                select.appendChild(opt);
+            });
+            updateHintPassword();
+        }
+
+        function updateHintPassword() {
+            document.getElementById('loginPassword').value = 'demak2026';
+        }
+
+        function handleLogin(event) {
+            event.preventDefault();
+            const role = document.getElementById('loginRole').value;
+            const password = document.getElementById('loginPassword').value;
+
+            if (role === 'admin') {
+                if (password !== 'admin2026' && password !== 'demak2026') {
+                    showNotification('Gagal Masuk', 'Kata sandi Administrator salah.', 'error');
+                    return;
+                }
+                currentUser = { role: 'admin', name: 'Administrator Kabupaten' };
+            } else {
+                const opdName = document.getElementById('loginOpdName').value;
+                if (password !== 'demak2026') {
+                    showNotification('Gagal Masuk', 'Kata sandi OPD salah. Gunakan sandi default.', 'error');
+                    return;
+                }
+                currentUser = { role: 'opd', name: opdName };
+            }
+
+            sessionStorage.setItem('siap_kak_user', JSON.stringify(currentUser));
+            initApp();
+        }
+
+        function handleLogout() {
+            sessionStorage.removeItem('siap_kak_user');
+            currentUser = null;
+            document.getElementById('app-container').classList.add('hidden');
+            document.getElementById('login-section').classList.remove('hidden');
+            document.getElementById('loginPassword').value = '';
+            populateLoginOpdDropdown();
+        }
+
+        function initApp() {
+            document.getElementById('login-section').classList.add('hidden');
+            document.getElementById('app-container').classList.remove('hidden');
+
+            if (currentUser.role === 'admin') {
+                document.getElementById('userRoleBadge').textContent = 'Panel Administrator Kabupaten Demak';
+                document.getElementById('nav-opd').classList.remove('hidden');
+            } else {
+                document.getElementById('userRoleBadge').textContent = `Operator: ${currentUser.name}`;
+                document.getElementById('nav-opd').classList.add('hidden');
+            }
+
+            populateFormOpdDropdown();
+            populateDashboardFilterDropdown();
+            switchTab('dashboard');
+        }
+
+        function switchTab(tabId) {
+            ['dashboard', 'input', 'opd', 'admin'].forEach(t => {
+                const sec = document.getElementById(`section-${t}`);
+                const btn = document.getElementById(`nav-${t}`);
+                if (sec) sec.classList.add('hidden');
+                if (btn) {
+                    btn.className = "px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200 text-indigo-200 hover:text-white flex items-center gap-2";
+                }
+            });
+
+            if (tabId === 'opd' && currentUser.role !== 'admin') {
+                showNotification('Akses Dibatasi', 'Menu Manajemen OPD hanya untuk Administrator.', 'error');
+                switchTab('dashboard');
+                return;
+            }
+
+            const targetSec = document.getElementById(`section-${tabId}`);
+            const targetBtn = document.getElementById(`nav-${tabId}`);
+            if (targetSec) targetSec.classList.remove('hidden');
+            if (targetBtn) {
+                targetBtn.className = "px-3 py-2 text-xs sm:text-sm font-medium rounded-lg transition-all duration-200 bg-white text-indigo-700 shadow-sm flex items-center gap-2";
+            }
+
+            if (tabId === 'dashboard') {
+                renderDashboardStats();
+                renderCharts();
+            } else if (tabId === 'admin') {
+                renderTable();
+            } else if (tabId === 'opd') {
+                renderOpdTable();
+            }
+        }
+
+        function populateFormOpdDropdown() {
+            const select = document.getElementById('namaOpd');
+            select.innerHTML = '<option value="" disabled selected>Pilih Instansi...</option>';
+            
+            if (currentUser.role === 'admin') {
+                opdList.forEach(opd => {
+                    const opt = document.createElement('option');
+                    opt.value = opd;
+                    opt.textContent = opd;
+                    select.appendChild(opt);
+                });
+            } else {
+                const opt = document.createElement('option');
+                opt.value = currentUser.name;
+                opt.textContent = currentUser.name;
+                opt.selected = true;
+                select.appendChild(opt);
+                select.disabled = true;
+            }
+        }
+
+        function populateDashboardFilterDropdown() {
+            const select = document.getElementById('filterDashboardOpd');
+            select.innerHTML = '<option value="ALL">Semua Instansi (Keseluruhan)</option>';
+            opdList.forEach(opd => {
+                const opt = document.createElement('option');
+                opt.value = opd;
+                opt.textContent = opd;
+                select.appendChild(opt);
+            });
+        }
+
+        function onDashboardFilterChange() {
+            renderDashboardStats();
+            renderCharts();
+        }
+
+        function getFilteredReportsForDashboard() {
+            const filterOpd = document.getElementById('filterDashboardOpd').value;
+            let data = reportsData;
+            if (currentUser.role === 'opd') {
+                data = data.filter(item => item.namaOpd === currentUser.name);
+            } else if (filterOpd !== 'ALL') {
+                data = data.filter(item => item.namaOpd === filterOpd);
+            }
+            return data;
+        }
+
+        function renderDashboardStats() {
+            const data = getFilteredReportsForDashboard();
+            let totalPagu = 0, totalRealisasi = 0, sumTarget = 0, sumRealisasiFisik = 0;
+
+            data.forEach(item => {
+                totalPagu += Number(item.paguAnggaran) || 0;
+                totalRealisasi += Number(item.realisasiKeuangan) || 0;
+                sumTarget += Number(item.targetFisik) || 0;
+                sumRealisasiFisik += Number(item.realisasiFisik) || 0;
+            });
+
+            const avgTarget = data.length ? (sumTarget / data.length).toFixed(1) : 0;
+            const avgRealisasiFisik = data.length ? (sumRealisasiFisik / data.length).toFixed(1) : 0;
+
+            document.getElementById('stat-total-pagu').textContent = `Rp ${(totalPagu * 1000000).toLocaleString('id-ID')}`;
+            document.getElementById('stat-total-realisasi').textContent = `Rp ${(totalRealisasi * 1000000).toLocaleString('id-ID')}`;
+            document.getElementById('stat-avg-target').textContent = `${avgTarget}%`;
+            document.getElementById('stat-avg-realisasi-target').textContent = `${avgRealisasiFisik}%`;
+        }
+
+        function renderCharts() {
+            const data = getFilteredReportsForDashboard();
+            const labels = data.map(d => d.namaOpd.length > 25 ? d.namaOpd.substring(0, 25) + '...' : d.namaOpd);
+            const paguValues = data.map(d => d.paguAnggaran);
+            const realisasiValues = data.map(d => d.realisasiKeuangan);
+
+            const ctxBar = document.getElementById('barChart').getContext('2d');
+            if (barChartInstance) barChartInstance.destroy();
+            barChartInstance = new Chart(ctxBar, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Pagu Anggaran', data: paguValues, backgroundColor: '#6366f1', borderRadius: 6 },
+                        { label: 'Realisasi Keuangan', data: realisasiValues, backgroundColor: '#10b981', borderRadius: 6 }
+                    ]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+
+            const ctxPie = document.getElementById('pieChart').getContext('2d');
+            if (pieChartInstance) pieChartInstance.destroy();
+            pieChartInstance = new Chart(ctxPie, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: paguValues,
+                        backgroundColor: ['#6366f1', '#8b5cf6', '#ec4899', '#3b82f6', '#10b981', '#f59e0b', '#64748b']
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function handleFormSubmit(event) {
+            event.preventDefault();
+            const editIdx = document.getElementById('editIndex').value;
+            
+            const newItem = {
+                namaOpd: currentUser.role === 'opd' ? currentUser.name : document.getElementById('namaOpd').value,
+                bulanLaporan: document.getElementById('bulanLaporan').value,
+                tahunLaporan: document.getElementById('tahunLaporan').value,
+                paguAnggaran: parseFloat(document.getElementById('paguAnggaran').value),
+                realisasiKeuangan: parseFloat(document.getElementById('realisasiKeuangan').value),
+                targetFisik: parseFloat(document.getElementById('targetFisik').value),
+                realisasiFisik: parseFloat(document.getElementById('realisasiFisik').value),
+                keteranganData: document.getElementById('keteranganData').value
+            };
+
+            if (editIdx !== "") {
+                reportsData[editIdx] = newItem;
+                showNotification('Berhasil', 'Data laporan berhasil diperbarui.', 'success');
+            } else {
+                reportsData.push(newItem);
+                showNotification('Berhasil', 'Data laporan baru berhasil disimpan.', 'success');
+            }
+
+            localStorage.setItem('siap_kak_reports', JSON.stringify(reportsData));
+            resetForm();
+            switchTab('admin');
+        }
+
+        function resetForm() {
+            document.getElementById('opdForm').reset();
+            document.getElementById('editIndex').value = '';
+            document.getElementById('form-title').innerHTML = '<i class="fa-solid fa-pen-to-square text-indigo-600"></i> Form Pengumpulan Data Kinerja Instansi';
+            document.getElementById('submitBtn').innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Simpan Data';
+            if (currentUser.role === 'opd') {
+                document.getElementById('namaOpd').value = currentUser.name;
+            }
+        }
+
+        function editReport(index) {
+            const item = reportsData[index];
+            switchTab('input');
+            document.getElementById('editIndex').value = index;
+            document.getElementById('namaOpd').value = item.namaOpd;
+            document.getElementById('bulanLaporan').value = item.bulanLaporan;
+            document.getElementById('tahunLaporan').value = item.tahunLaporan;
+            document.getElementById('paguAnggaran').value = item.paguAnggaran;
+            document.getElementById('realisasiKeuangan').value = item.realisasiKeuangan;
+            document.getElementById('targetFisik').value = item.targetFisik;
+            document.getElementById('realisasiFisik').value = item.realisasiFisik;
+            document.getElementById('keteranganData').value = item.keteranganData;
+
+            document.getElementById('form-title').innerHTML = '<i class="fa-solid fa-pen-to-square text-indigo-600"></i> Edit Data Laporan Kinerja';
+            document.getElementById('submitBtn').innerHTML = '<i class="fa-solid fa-floppy-disk"></i> Perbarui Data';
+        }
+
+        function deleteReport(index) {
+            if (confirm('Apakah Anda yakin ingin menghapus data laporan ini?')) {
+                reportsData.splice(index, 1);
+                localStorage.setItem('siap_kak_reports', JSON.stringify(reportsData));
+                renderTable();
+                showNotification('Terhapus', 'Data laporan berhasil dihapus.', 'success');
+            }
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('dataTableBody');
+            const emptyState = document.getElementById('emptyTableState');
+            tbody.innerHTML = '';
+
+            const filterBulan = document.getElementById('filterAdminBulan').value;
+            const filterTahun = document.getElementById('filterAdminTahun').value;
+            const searchQuery = document.getElementById('searchInput').value.toLowerCase();
+
+            let filtered = reportsData.filter(item => {
+                if (currentUser.role === 'opd' && item.namaOpd !== currentUser.name) return false;
+                if (filterBulan !== 'ALL' && item.bulanLaporan !== filterBulan) return false;
+                if (filterTahun !== 'ALL' && item.tahunLaporan !== filterTahun) return false;
+                if (searchQuery && !item.namaOpd.toLowerCase().includes(searchQuery)) return false;
+                return true;
+            });
+
+            if (filtered.length === 0) {
+                emptyState.classList.remove('hidden');
+                return;
+            } else {
+                emptyState.classList.add('hidden');
+            }
+
+            filtered.forEach((item, idx) => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50/80 transition";
+                tr.innerHTML = `
+                    <td class="py-3 px-4">${idx + 1}</td>
+                    <td class="py-3 px-4 font-medium text-slate-800">${item.namaOpd}</td>
+                    <td class="py-3 px-4 whitespace-nowrap">${item.bulanLaporan} ${item.tahunLaporan}</td>
+                    <td class="py-3 px-4 whitespace-nowrap">Rp ${(item.paguAnggaran * 1000000).toLocaleString('id-ID')}</td>
+                    <td class="py-3 px-4 whitespace-nowrap">Rp ${(item.realisasiKeuangan * 1000000).toLocaleString('id-ID')}</td>
+                    <td class="py-3 px-4">${item.targetFisik}%</td>
+                    <td class="py-3 px-4 font-semibold text-indigo-600">${item.realisasiFisik}%</td>
+                    <td class="py-3 px-4 text-xs text-slate-500 max-w-xs truncate" title="${item.keteranganData}">${item.keteranganData || '-'}</td>
+                    <td class="py-3 px-4 text-center whitespace-nowrap">
+                        <button onclick="editReport(${reportsData.indexOf(item)})" class="p-1.5 bg-amber-50 text-amber-600 rounded-lg hover:bg-amber-100 transition mr-1" title="Edit"><i class="fa-solid fa-pen text-xs"></i></button>
+                        <button onclick="deleteReport(${reportsData.indexOf(item)})" class="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 transition" title="Hapus"><i class="fa-solid fa-trash text-xs"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function renderOpdTable() {
+            const tbody = document.getElementById('opdTableBody');
+            tbody.innerHTML = '';
+            document.getElementById('opdCount').textContent = opdList.length;
+
+            opdList.forEach((opd, idx) => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50/80 transition";
+                tr.innerHTML = `
+                    <td class="py-3 px-4">${idx + 1}</td>
+                    <td class="py-3 px-4 font-medium text-slate-800">${opd}</td>
+                    <td class="py-3 px-4 text-center">
+                        <button onclick="deleteOpd(${idx})" class="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 transition" title="Hapus Instansi"><i class="fa-solid fa-trash text-xs"></i></button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function handleOpdManualSubmit(event) {
+            event.preventDefault();
+            const name = document.getElementById('newOpdName').value.trim();
+            if (name && !opdList.includes(name)) {
+                opdList.push(name);
+                localStorage.setItem('siap_kak_opd', JSON.stringify(opdList));
+                document.getElementById('newOpdName').value = '';
+                renderOpdTable();
+                populateFormOpdDropdown();
+                populateDashboardFilterDropdown();
+                showNotification('Berhasil', 'Instansi baru berhasil ditambahkan.', 'success');
+            } else {
+                showNotification('Peringatan', 'Nama instansi sudah ada atau kosong.', 'error');
+            }
+        }
+
+        function deleteOpd(index) {
+            if (opdList.length <= 1) {
+                showNotification('Ditolak', 'Minimal harus ada 1 instansi terdaftar.', 'error');
+                return;
+            }
+            if (confirm('Hapus instansi ini?')) {
+                opdList.splice(index, 1);
+                localStorage.setItem('siap_kak_opd', JSON.stringify(opdList));
+                renderOpdTable();
+                populateFormOpdDropdown();
+                populateDashboardFilterDropdown();
+                showNotification('Terhapus', 'Instansi berhasil dihapus.', 'success');
+            }
+        }
+
+        function handleExcelUpload() {
+            const fileInput = document.getElementById('excelOpdFile');
+            const file = fileInput.files[0];
+            if (!file) {
+                showNotification('Peringatan', 'Pilih file Excel terlebih dahulu.', 'error');
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const firstSheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[firstSheetName];
+                    const json = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+
+                    let addedCount = 0;
+                    json.forEach(row => {
+                        if (row[0] && typeof row[0] === 'string' && row[0].trim() !== '') {
+                            const val = row[0].trim();
+                            if (!opdList.includes(val) && val.toLowerCase() !== 'nama instansi' && val.toLowerCase() !== 'opd') {
+                                opdList.push(val);
+                                addedCount++;
+                            }
+                        }
+                    });
+
+                    localStorage.setItem('siap_kak_opd', JSON.stringify(opdList));
+                    renderOpdTable();
+                    populateFormOpdDropdown();
+                    populateDashboardFilterDropdown();
+                    fileInput.value = '';
+                    showNotification('Berhasil', `${addedCount} instansi berhasil diimpor dari Excel.`, 'success');
+                } catch (err) {
+                    showNotification('Gagal', 'Terjadi kesalahan saat memproses file Excel.', 'error');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function exportData() {
+            if (reportsData.length === 0) {
+                showNotification('Kosong', 'Tidak ada data untuk diekspor.', 'error');
+                return;
+            }
+            const exportArray = reportsData.map((item, idx) => ({
+                No: idx + 1,
+                "Nama Instansi / OPD": item.namaOpd,
+                Bulan: item.bulanLaporan,
+                Tahun: item.tahunLaporan,
+                "Pagu Anggaran (Juta Rp)": item.paguAnggaran,
+                "Realisasi Keuangan (Juta Rp)": item.realisasiKeuangan,
+                "Target Fisik (%)": item.targetFisik,
+                "Realisasi Fisik (%)": item.realisasiFisik,
+                Catatan: item.keteranganData
+            }));
+
+            const ws = XLSX.utils.json_to_sheet(exportArray);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "Laporan SIAP-KAK");
+            XLSX.writeFile(wb, "Rekap_Laporan_SIAP_KAK_Demak.xlsx");
+            showNotification('Berhasil', 'Data berhasil diekspor ke format Excel.', 'success');
+        }
+
+        function showNotification(title, message, type = 'success') {
+            const modal = document.getElementById('notificationModal');
+            document.getElementById('modalTitle').textContent = title;
+            document.getElementById('modalMessage').textContent = message;
+            
+            const iconContainer = document.getElementById('modalIconContainer');
+            const icon = document.getElementById('modalIcon');
+            
+            if (type === 'error') {
+                iconContainer.className = "w-14 h-14 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto text-2xl shadow-inner";
+                icon.className = "fa-solid fa-triangle-exclamation";
+            } else {
+                iconContainer.className = "w-14 h-14 bg-emerald-50 text-emerald-600 rounded-2xl flex items-center justify-center mx-auto text-2xl shadow-inner";
+                icon.className = "fa-solid fa-circle-check";
+            }
+
+            modal.classList.remove('hidden');
+        }
+
+        function closeNotification() {
+            document.getElementById('notificationModal').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
